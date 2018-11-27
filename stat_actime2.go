@@ -4,7 +4,7 @@
 
 // +build darwin freebsd netbsd
 
-package tar
+package rawtar
 
 import (
 	"syscall"

@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Package tar implements access to tar archives.
+// package rawtar implements access to tar archives.
 //
 // Tape archives (tar) are a file format for storing a sequence of files that
 // can be read and written in a streaming manner.
 // This package aims to cover most variations of the format,
 // including those produced by GNU and BSD tar tools.
-package tar
+package rawtar
 
 import (
 	"errors"
@@ -62,7 +62,7 @@ const (
 	TypeLink    = '1' // Hard link
 	TypeSymlink = '2' // Symbolic link
 	TypeChar    = '3' // Character device node
-	TypeBlock   = '4' // Block device node
+	TypeBlock   = '4' // block device node
 	TypeDir     = '5' // Directory
 	TypeFifo    = '6' // FIFO node
 
@@ -412,7 +412,7 @@ func (h Header) allowedFormats() (format Format, paxHdrs map[string]string, err 
 	}
 
 	// Check basic fields.
-	var blk block
+	var blk Block
 	v7 := blk.V7()
 	ustar := blk.USTAR()
 	gnu := blk.GNU()
@@ -614,7 +614,7 @@ const (
 	c_ISFIFO = 010000  // FIFO
 	c_ISREG  = 0100000 // Regular file
 	c_ISLNK  = 0120000 // Symbolic link
-	c_ISBLK  = 060000  // Block special file
+	c_ISBLK  = 060000  // block special file
 	c_ISCHR  = 020000  // Character special file
 	c_ISSOCK = 0140000 // Socket
 )

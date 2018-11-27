@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tar
+package rawtar
 
 import (
 	"bytes"
@@ -1021,7 +1021,7 @@ func TestParsePAX(t *testing.T) {
 }
 
 func TestReadOldGNUSparseMap(t *testing.T) {
-	populateSparseMap := func(sa sparseArray, sps []string) []string {
+	populateSparseMap := func(sa SparseArray, sps []string) []string {
 		for i := 0; len(sps) > 0 && i < sa.MaxEntries(); i++ {
 			copy(sa.Entry(i), sps[0])
 			sps = sps[1:]
@@ -1034,7 +1034,7 @@ func TestReadOldGNUSparseMap(t *testing.T) {
 
 	makeInput := func(format Format, size string, sps ...string) (out []byte) {
 		// Write the initial GNU header.
-		var blk block
+		var blk Block
 		gnu := blk.GNU()
 		sparse := gnu.Sparse()
 		copy(gnu.RealSize(), size)
@@ -1046,7 +1046,7 @@ func TestReadOldGNUSparseMap(t *testing.T) {
 
 		// Write extended sparse blocks.
 		for len(sps) > 0 {
-			var blk block
+			var blk Block
 			sps = populateSparseMap(blk.Sparse(), sps)
 			out = append(out, blk[:]...)
 		}
@@ -1123,7 +1123,7 @@ func TestReadOldGNUSparseMap(t *testing.T) {
 	}}
 
 	for i, v := range vectors {
-		var blk block
+		var blk Block
 		var hdr Header
 		v.input = v.input[copy(blk[:], v.input):]
 		tr := Reader{r: bytes.NewReader(v.input)}

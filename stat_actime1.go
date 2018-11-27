@@ -4,7 +4,7 @@
 
 // +build linux dragonfly openbsd solaris
 
-package tar
+package rawtar
 
 import (
 	"syscall"

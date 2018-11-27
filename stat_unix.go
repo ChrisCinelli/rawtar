@@ -4,7 +4,7 @@
 
 // +build linux darwin dragonfly freebsd openbsd netbsd solaris
 
-package tar
+package rawtar
 
 import (
 	"os"

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tar
+package rawtar
 
 import (
 	"bytes"
@@ -986,7 +986,7 @@ func TestIssue12594(t *testing.T) {
 		}
 
 		// The prefix field should never appear in the GNU format.
-		var blk block
+		var blk Block
 		copy(blk[:], b.Bytes())
 		prefix := string(blk.USTAR().Prefix())
 		if i := strings.IndexByte(prefix, 0); i >= 0 {

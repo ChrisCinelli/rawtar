@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tar
+package rawtar
 
 import (
 	"fmt"
@@ -21,7 +21,7 @@ type Writer struct {
 	pad  int64      // Amount of padding to write after current file entry
 	curr fileWriter // Writer for current file entry
 	hdr  Header     // Shallow copy of Header that is safe for mutations
-	blk  block      // Buffer to use as temporary local storage
+	blk  Block      // Buffer to use as temporary local storage
 
 	// err is a persistent error.
 	// It is only the responsibility of every exported method of Writer to
@@ -264,7 +264,7 @@ func (tw *Writer) writeGNUHeader(hdr *Header) error {
 			spd = invertSparseEntries(sph, hdr.Size)
 
 			// Format the sparse map.
-			formatSPD := func(sp sparseDatas, sa sparseArray) sparseDatas {
+			formatSPD := func(sp sparseDatas, sa SparseArray) sparseDatas {
 				for i := 0; len(sp) > 0 && i < sa.MaxEntries(); i++ {
 					f.formatNumeric(sa.Entry(i).Offset(), sp[0].Offset)
 					f.formatNumeric(sa.Entry(i).Length(), sp[0].Length)
@@ -277,7 +277,7 @@ func (tw *Writer) writeGNUHeader(hdr *Header) error {
 			}
 			sp2 := formatSPD(spd, blk.GNU().Sparse())
 			for len(sp2) > 0 {
-				var spHdr block
+				var spHdr Block
 				sp2 = formatSPD(sp2, spHdr.Sparse())
 				spb = append(spb, spHdr[:]...)
 			}
@@ -320,7 +320,7 @@ type (
 //
 // The block returned is only valid until the next call to
 // templateV7Plus or writeRawFile.
-func (tw *Writer) templateV7Plus(hdr *Header, fmtStr stringFormatter, fmtNum numberFormatter) *block {
+func (tw *Writer) templateV7Plus(hdr *Header, fmtStr stringFormatter, fmtNum numberFormatter) *Block {
 	tw.blk.Reset()
 
 	modTime := hdr.ModTime
@@ -385,7 +385,7 @@ func (tw *Writer) writeRawFile(name, data string, flag byte, format Format) erro
 // writeRawHeader writes the value of blk, regardless of its value.
 // It sets up the Writer such that it can accept a file of the given size.
 // If the flag is a special header-only flag, then the size is treated as zero.
-func (tw *Writer) writeRawHeader(blk *block, size int64, flag byte) error {
+func (tw *Writer) writeRawHeader(blk *Block, size int64, flag byte) error {
 	if err := tw.Flush(); err != nil {
 		return err
 	}

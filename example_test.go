@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tar_test
+package rawtar_test
 
 import (
-	"archive/tar"
+	"github.com/chriscinelli/rawtar"
 	"bytes"
 	"fmt"
 	"io"
@@ -16,7 +16,7 @@ import (
 func Example_minimal() {
 	// Create and add some files to the archive.
 	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
+	tw := rawtar.NewWriter(&buf)
 	var files = []struct {
 		Name, Body string
 	}{
@@ -25,7 +25,7 @@ func Example_minimal() {
 		{"todo.txt", "Get animal handling license."},
 	}
 	for _, file := range files {
-		hdr := &tar.Header{
+		hdr := &rawtar.Header{
 			Name: file.Name,
 			Mode: 0600,
 			Size: int64(len(file.Body)),
@@ -42,7 +42,7 @@ func Example_minimal() {
 	}
 
 	// Open and iterate through the files in the archive.
-	tr := tar.NewReader(&buf)
+	tr := rawtar.NewReader(&buf)
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {

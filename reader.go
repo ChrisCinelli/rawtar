@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tar
+package rawtar
 
 import (
 	"bytes"
@@ -20,7 +20,7 @@ type Reader struct {
 	r    io.Reader
 	pad  int64      // Amount of padding (ignored) after current file entry
 	curr fileReader // Reader for current file entry
-	blk  block      // Buffer to use as temporary local storage
+	blk  Block      // Buffer to use as temporary local storage
 
 	// err is a persistent error.
 	// It is only the responsibility of every exported method of Reader to
@@ -49,12 +49,21 @@ func (tr *Reader) Next() (*Header, error) {
 	if tr.err != nil {
 		return nil, tr.err
 	}
-	hdr, err := tr.next()
+	hdr, _, err := tr.next()
 	tr.err = err
 	return hdr, err
 }
 
-func (tr *Reader) next() (*Header, error) {
+func (tr *Reader) NextRaw() (*Header, *Block, error) {
+	if tr.err != nil {
+		return nil, nil, tr.err
+	}
+	hdr, rawHdr, err := tr.next()
+	tr.err = err
+	return hdr, rawHdr, err
+}
+
+func (tr *Reader) next() (*Header, *Block, error) {
 	var paxHdrs map[string]string
 	var gnuLongName, gnuLongLink string
 
@@ -67,19 +76,19 @@ func (tr *Reader) next() (*Header, error) {
 	for {
 		// Discard the remainder of the file and any padding.
 		if err := discard(tr.r, tr.curr.PhysicalRemaining()); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if _, err := tryReadFull(tr.r, tr.blk[:tr.pad]); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		tr.pad = 0
 
 		hdr, rawHdr, err := tr.readHeader()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if err := tr.handleRegularFile(hdr); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		format.mayOnlyBe(hdr.Format)
 
@@ -89,7 +98,7 @@ func (tr *Reader) next() (*Header, error) {
 			format.mayOnlyBe(FormatPAX)
 			paxHdrs, err = parsePAX(tr)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if hdr.Typeflag == TypeXGlobalHeader {
 				mergePAX(hdr, paxHdrs)
@@ -99,14 +108,14 @@ func (tr *Reader) next() (*Header, error) {
 					Xattrs:     hdr.Xattrs,
 					PAXRecords: hdr.PAXRecords,
 					Format:     format,
-				}, nil
+				}, rawHdr, nil
 			}
 			continue // This is a meta header affecting the next header
 		case TypeGNULongName, TypeGNULongLink:
 			format.mayOnlyBe(FormatGNU)
 			realname, err := ioutil.ReadAll(tr)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			var p parser
@@ -122,7 +131,7 @@ func (tr *Reader) next() (*Header, error) {
 			// just a regular file with additional attributes.
 
 			if err := mergePAX(hdr, paxHdrs); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if gnuLongName != "" {
 				hdr.Name = gnuLongName
@@ -141,13 +150,13 @@ func (tr *Reader) next() (*Header, error) {
 			// The extended headers may have updated the size.
 			// Thus, setup the regFileReader again after merging PAX headers.
 			if err := tr.handleRegularFile(hdr); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Sparse formats rely on being able to read from the logical data
 			// section; there must be a preceding call to handleRegularFile.
 			if err := tr.handleSparseFile(hdr, rawHdr); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Set the final guess at the format.
@@ -155,7 +164,7 @@ func (tr *Reader) next() (*Header, error) {
 				format.mayOnlyBe(FormatUSTAR)
 			}
 			hdr.Format = format
-			return hdr, nil // This is a file, so stop
+			return hdr, rawHdr, nil // This is a file, so stop
 		}
 	}
 }
@@ -179,7 +188,7 @@ func (tr *Reader) handleRegularFile(hdr *Header) error {
 
 // handleSparseFile checks if the current file is a sparse format of any type
 // and sets the curr reader appropriately.
-func (tr *Reader) handleSparseFile(hdr *Header, rawHdr *block) error {
+func (tr *Reader) handleSparseFile(hdr *Header, rawHdr *Block) error {
 	var spd sparseDatas
 	var err error
 	if hdr.Typeflag == TypeGNUSparse {
@@ -333,14 +342,14 @@ func parsePAX(r io.Reader) (map[string]string, error) {
 }
 
 // readHeader reads the next block header and assumes that the underlying reader
-// is already aligned to a block boundary. It returns the raw block of the
+// is already aligned to a Block boundary. It returns the raw block of the
 // header in case further processing is required.
 //
 // The err will be set to io.EOF only when one of the following occurs:
 //	* Exactly 0 bytes are read and EOF is hit.
 //	* Exactly 1 block of zeros is read and EOF is hit.
 //	* At least 2 blocks of zeros are read.
-func (tr *Reader) readHeader() (*Header, *block, error) {
+func (tr *Reader) readHeader() (*Header, *Block, error) {
 	// Two blocks of zero bytes marks the end of the archive.
 	if _, err := io.ReadFull(tr.r, tr.blk[:]); err != nil {
 		return nil, nil, err // EOF is okay here; exactly 0 bytes read
@@ -352,7 +361,7 @@ func (tr *Reader) readHeader() (*Header, *block, error) {
 		if bytes.Equal(tr.blk[:], zeroBlock[:]) {
 			return nil, nil, io.EOF // normal EOF; exactly 2 block of zeros read
 		}
-		return nil, nil, ErrHeader // Zero block and then non-zero block
+		return nil, nil, ErrHeader // Zero Block and then non-zero block
 	}
 
 	// Verify the header matches a known format.
@@ -462,7 +471,7 @@ func (tr *Reader) readHeader() (*Header, *block, error) {
 // The Header.Size does not reflect the size of any extended headers used.
 // Thus, this function will read from the raw io.Reader to fetch extra headers.
 // This method mutates blk in the process.
-func (tr *Reader) readOldGNUSparseMap(hdr *Header, blk *block) (sparseDatas, error) {
+func (tr *Reader) readOldGNUSparseMap(hdr *Header, blk *Block) (sparseDatas, error) {
 	// Make sure that the input format is GNU.
 	// Unfortunately, the STAR format also has a sparse header format that uses
 	// the same type flag but has a completely different layout.
@@ -518,7 +527,7 @@ func readGNUSparseMap1x0(r io.Reader) (sparseDatas, error) {
 	var (
 		cntNewline int64
 		buf        bytes.Buffer
-		blk        block
+		blk        Block
 	)
 
 	// feedTokens copies data in blocks from r into buf until there are
